@@ -827,43 +827,73 @@ function endShake() {
 // 渲染
 // ============================================================
 
-/** 绘制单个水果 (使用系统 emoji) */
+/** 绘制单个水果 (彩色圆底 + 系统 emoji 高清) */
 function drawFruit(f, alpha) {
   const type = FRUIT_TYPES[f.level];
   if (!type) return;
 
   const emoji = type[1];
   const r = f.r;
+  const a = alpha == null ? 1 : alpha;
 
   ctx.save();
-  ctx.globalAlpha = alpha == null ? 1 : alpha;
+  ctx.globalAlpha = a;
 
-  // 水果阴影/光晕
-  const glow = ctx.createRadialGradient(f.x, f.y, r * 0.1, f.x, f.y, r * 1.2);
-  glow.addColorStop(0, `rgba(255,255,255,0.12)`);
-  glow.addColorStop(0.5, `rgba(255,255,255,0.04)`);
-  glow.addColorStop(1, `rgba(255,255,255,0)`);
-  ctx.fillStyle = glow;
+  // 1. 彩色圆形底 — 清晰区分每个水果，避免堆叠时糊在一起
+  const grad = ctx.createRadialGradient(
+    f.x - r * 0.25, f.y - r * 0.25, r * 0.05,
+    f.x, f.y, r
+  );
+  grad.addColorStop(0, lightenColor(type[3], 40));
+  grad.addColorStop(0.7, type[3]);
+  grad.addColorStop(1, darkenColor(type[3], 30));
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(f.x, f.y, r * 1.2, 0, Math.PI * 2);
+  ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // 底部环境阴影
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
+  // 2. 细边框
+  ctx.strokeStyle = `rgba(255,255,255,0.15)`;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
-  // 用 emoji 绘制水果
-  const fontSize = r * 2.2;
-  ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  // 3. 顶部高光
+  ctx.globalAlpha = a * 0.35;
+  ctx.beginPath();
+  ctx.ellipse(f.x - r * 0.25, f.y - r * 0.25, r * 0.3, r * 0.2, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.globalAlpha = a;
+
+  // 4. 系统 emoji — 清晰高清渲染
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 10;
-  ctx.shadowOffsetY = 0;
+  const fontSize = Math.max(r * 2.0, 22);
+  ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
   ctx.fillText(emoji, f.x, f.y + 1);
 
   ctx.restore();
+}
+
+/** 加深颜色 */
+function darkenColor(hex, amt) {
+  let c = parseInt(hex.slice(1), 16);
+  let r = Math.max(0, (c >> 16) - amt);
+  let g = Math.max(0, ((c >> 8) & 0xff) - amt);
+  let b = Math.max(0, (c & 0xff) - amt);
+  return `rgb(${r},${g},${b})`;
+}
+
+/** 变亮颜色 */
+function lightenColor(hex, amt) {
+  let c = parseInt(hex.slice(1), 16);
+  let r = Math.min(255, (c >> 16) + amt);
+  let g = Math.min(255, ((c >> 8) & 0xff) + amt);
+  let b = Math.min(255, (c & 0xff) + amt);
+  return `rgb(${r},${g},${b})`;
 }
 
 /** 绘制危险线 */
@@ -893,7 +923,7 @@ function drawDangerLine(time) {
   ctx.restore();
 }
 
-/** 绘制 ghost 预览 */
+/** 绘制 ghost 预览 (半透明圆底 + emoji) */
 function drawGhostPreview() {
   if (gameOver || paused) return;
   if (currentDropLevel < 0) return;
@@ -914,32 +944,45 @@ function drawGhostPreview() {
   ctx.stroke();
   ctx.setLineDash([]);
 
+  // 半透明圆底
+  ctx.globalAlpha = 0.25;
+  const grad = ctx.createRadialGradient(x - r*0.2, DROP_Y - r*0.2, 1, x, DROP_Y, r);
+  grad.addColorStop(0, lightenColor(type[3], 40));
+  grad.addColorStop(1, type[3]);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, DROP_Y, r, 0, Math.PI * 2);
+  ctx.fill();
+
   // 半透明 emoji
-  const fontSize = r * 2.2;
-  ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.globalAlpha = 0.4;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.globalAlpha = 0.35;
-  ctx.shadowColor = 'rgba(255,255,255,0.08)';
-  ctx.shadowBlur = 6;
-  ctx.fillText(type[1], x, DROP_Y);
+  const fontSize = Math.max(r * 2.0, 22);
+  ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.fillText(type[1], x, DROP_Y + 1);
 
   ctx.restore();
 }
 
-/** 绘制 next 预览 (顶部中央) */
+/** 绘制 next 预览 (左下角) */
 function drawNextPreview() {
   if (nextFruitLevel < 0) return;
   const type = FRUIT_TYPES[nextFruitLevel];
-  const fontSize = 26;
   ctx.save();
-  ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  // "下一个"文字
+  ctx.font = '10px -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillText('下一个', 16, 52);
+  // 预览 emoji
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // 轻微光晕
-  ctx.shadowColor = 'rgba(255,255,255,0.1)';
-  ctx.shadowBlur = 8;
-  ctx.fillText(type[1], CANVAS_W / 2, 28);
+  ctx.font = '28px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  ctx.shadowColor = 'rgba(255,255,255,0.08)';
+  ctx.shadowBlur = 6;
+  ctx.fillText(type[1], 42, 72);
   ctx.restore();
 }
 
