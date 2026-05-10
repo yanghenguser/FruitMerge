@@ -270,11 +270,36 @@ const comboSubEl = document.getElementById('comboSub');
  */
 function initCanvasRetina() {
   const dpr = window.devicePixelRatio || 1;
+  // 设置像素缓冲区为逻辑尺寸 × dPR（保证高清渲染）
   canvas.width = CANVAS_W * dpr;
   canvas.height = CANVAS_H * dpr;
+  // 不设置 style.width/height，由 CSS `width:100% + aspect-ratio` 控制响应式显示
   ctx.scale(dpr, dpr);
 }
+
+/**
+ * 响应式缩放：当屏幕宽度小于逻辑宽度时，用CSS transform完美适应
+ */
+function initResponsiveScale() {
+  const container = document.getElementById('game-container');
+  const maxW = Math.min(window.innerWidth - 8, 420);
+  if (maxW < CANVAS_W) {
+    const s = maxW / CANVAS_W;
+    canvas.style.transform = `scale(${s})`;
+    canvas.style.transformOrigin = 'top center';
+  } else {
+    canvas.style.transform = '';
+    canvas.style.transformOrigin = '';
+  }
+}
+window.addEventListener('resize', initResponsiveScale);
 initCanvasRetina();
+// 页面加载完成后执行响应式缩放
+if (document.readyState === 'complete') {
+  initResponsiveScale();
+} else {
+  window.addEventListener('load', initResponsiveScale);
+}
 
 // ============================================================
 // 三、音效系统（Web Audio API）
@@ -864,7 +889,7 @@ class Fruit {
     if (r >= 38) {
       ctx.save();
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.font = `bold ${Math.min(r * 0.32, 13)}px sans-serif`;
+      ctx.font = `bold ${Math.min(r * 0.35, 16)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.shadowColor = 'rgba(0,0,0,0.4)';
@@ -1192,7 +1217,7 @@ function drawRedLine() {
   // 危险标签
   ctx.save();
   ctx.fillStyle = '#ff3355';
-  ctx.font = 'bold 10px sans-serif';
+  ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
   ctx.globalAlpha = 0.5 + 0.3 * Math.sin(frameCount * 0.06);
@@ -1213,7 +1238,7 @@ function drawUI() {
   titleGrad.addColorStop(0.7, '#ffec8b');
   titleGrad.addColorStop(1, '#ffd700');
   ctx.fillStyle = titleGrad;
-  ctx.font = 'bold 21px sans-serif';
+  ctx.font = 'bold 28px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
@@ -1227,15 +1252,15 @@ function drawUI() {
   ctx.textBaseline = 'top';
 
   ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = '11px sans-serif';
+  ctx.font = '15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('分数 SCORE', 14, 43);
+  ctx.fillText('分数 SCORE', 18, 43);
 
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 22px sans-serif';
-  ctx.shadowColor = 'rgba(255,255,255,0.1)';
-  ctx.shadowBlur = 8;
-  ctx.fillText(score, 14, 58);
+  ctx.font = 'bold 30px sans-serif';
+  ctx.shadowColor = 'rgba(255,255,255,0.15)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(score, 18, 62);
   ctx.restore();
 
   // 右: 最高分
@@ -1244,11 +1269,11 @@ function drawUI() {
   ctx.textAlign = 'right';
 
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '11px sans-serif';
-  ctx.fillText('最高分 BEST', CANVAS_W - 14, 43);
+  ctx.font = '15px sans-serif';
+  ctx.fillText('最高分 BEST', CANVAS_W - 18, 43);
 
   ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = 'bold 28px sans-serif';
   ctx.shadowColor = 'rgba(255, 215, 0, 0.2)';
   ctx.shadowBlur = 10;
   ctx.fillText(highScore, CANVAS_W - 14, 58);
@@ -1258,7 +1283,7 @@ function drawUI() {
   const previewY = 82;
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.font = '10px sans-serif';
+  ctx.font = '14px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText('下一个', CANVAS_W / 2, previewY);
@@ -1287,7 +1312,7 @@ function drawUI() {
   // 预览水果名称
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.font = '9px sans-serif';
+  ctx.font = '13px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(nextType.name, CANVAS_W / 2, previewY + 15 + previewR + 2);
@@ -1341,7 +1366,7 @@ function drawMergeNotification() {
   ctx.save();
   ctx.globalAlpha = Math.min(1, mergeNotification.timer / 20);
   ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 18px sans-serif';
+  ctx.font = 'bold 22px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(255, 200, 0, 0.5)';
