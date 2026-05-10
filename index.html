@@ -41,28 +41,6 @@ body {
   cursor: pointer;
 }
 
-/* ===== 玻璃拟态面板 ===== */
-.glass-panel {
-  position: absolute;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
-}
-.glass-panel.top-left {
-  top: 42px; left: 8px;
-  width: 90px; height: 48px;
-  border-radius: 12px;
-}
-.glass-panel.top-right {
-  top: 42px; right: 8px;
-  width: 90px; height: 48px;
-  border-radius: 12px;
-}
-
 /* ===== 游戏结束遮罩 (玻璃拟态) ===== */
 #gameOverOverlay {
   display: none;
@@ -169,11 +147,7 @@ body {
 <div id="game-container">
   <canvas id="gameCanvas" width="400" height="750"></canvas>
 
-  <!-- 玻璃拟态面板 (分数背景) -->
-  <div class="glass-panel top-left"></div>
-  <div class="glass-panel top-right"></div>
-
-  <!-- Combo 提示 -->
+<!-- Combo 提示 -->
   <div id="comboToast">
     <div class="combo-text" id="comboText">🔥 x2 Combo!</div>
     <div class="combo-sub" id="comboSub">连击加分!</div>
@@ -225,17 +199,17 @@ const DROP_COOLDOWN = 400;
 // 水果等级定义（11 级）
 // 每项: { 名称, 半径, 主色, 高光色, 阴影色, 边框色, 表情色, 分值基数 }
 const FRUIT_TYPES = [
-  { name: '葡萄',   r: 14, color: '#9b59b6', hl: '#d8b4fe', sh: '#6b21a8', st: '#7c3aed', fc: '#4a1d6e', score: 10 },
-  { name: '樱桃',   r: 18, color: '#e74c3c', hl: '#fca5a5', sh: '#991b1b', st: '#b91c1c', fc: '#7f1d1d', score: 20 },
-  { name: '橘子',   r: 23, color: '#f39c12', hl: '#fde68a', sh: '#b45309', st: '#d97706', fc: '#78350f', score: 30 },
-  { name: '柠檬',   r: 28, color: '#f1c40f', hl: '#fef08a', sh: '#a16207', st: '#a16207', fc: '#713f12', score: 40 },
-  { name: '猕猴桃', r: 33, color: '#2ecc71', hl: '#86efac', sh: '#166534', st: '#15803d', fc: '#14532d', score: 60 },
-  { name: '番茄',   r: 38, color: '#dc2626', hl: '#f87171', sh: '#7f1d1d', st: '#991b1b', fc: '#450a0a', score: 80 },
-  { name: '桃子',   r: 43, color: '#fd79a8', hl: '#f9a8d4', sh: '#9d174d', st: '#be185d', fc: '#831843', score: 120 },
-  { name: '菠萝',   r: 48, color: '#e67e22', hl: '#fbbf24', sh: '#92400e', st: '#b45309', fc: '#78350f', score: 160 },
-  { name: '椰子',   r: 54, color: '#a0752a', hl: '#d4a373', sh: '#5c3d0e', st: '#7c5518', fc: '#422b0a', score: 220 },
-  { name: '半西瓜', r: 62, color: '#27ae60', hl: '#6ee7b7', sh: '#14532d', st: '#166534', fc: '#0f3d1e', score: 300 },
-  { name: '大西瓜', r: 72, color: '#1e8449', hl: '#4ade80', sh: '#0f3d1e', st: '#14532d', fc: '#0a2712', score: 500 },
+  { name: '葡萄',   emoji: '🍇', r: 14, color: '#9b59b6', hl: '#d8b4fe', sh: '#6b21a8', st: '#7c3aed', fc: '#4a1d6e', score: 10 },
+  { name: '樱桃',   emoji: '🍒', r: 18, color: '#e74c3c', hl: '#fca5a5', sh: '#991b1b', st: '#b91c1c', fc: '#7f1d1d', score: 20 },
+  { name: '橘子',   emoji: '🍊', r: 23, color: '#f39c12', hl: '#fde68a', sh: '#b45309', st: '#d97706', fc: '#78350f', score: 30 },
+  { name: '柠檬',   emoji: '🍋', r: 28, color: '#f1c40f', hl: '#fef08a', sh: '#a16207', st: '#a16207', fc: '#713f12', score: 40 },
+  { name: '猕猴桃', emoji: '🥝', r: 33, color: '#2ecc71', hl: '#86efac', sh: '#166534', st: '#15803d', fc: '#14532d', score: 60 },
+  { name: '番茄',   emoji: '🍅', r: 38, color: '#dc2626', hl: '#f87171', sh: '#7f1d1d', st: '#991b1b', fc: '#450a0a', score: 80 },
+  { name: '桃子',   emoji: '🍑', r: 43, color: '#fd79a8', hl: '#f9a8d4', sh: '#9d174d', st: '#be185d', fc: '#831843', score: 120 },
+  { name: '菠萝',   emoji: '🍍', r: 48, color: '#e67e22', hl: '#fbbf24', sh: '#92400e', st: '#b45309', fc: '#78350f', score: 160 },
+  { name: '椰子',   emoji: '🥥', r: 54, color: '#a0752a', hl: '#d4a373', sh: '#5c3d0e', st: '#7c5518', fc: '#422b0a', score: 220 },
+  { name: '半西瓜', emoji: '🍉', r: 62, color: '#27ae60', hl: '#6ee7b7', sh: '#14532d', st: '#166534', fc: '#0f3d1e', score: 300 },
+  { name: '大西瓜', emoji: '🍉', r: 72, color: '#1e8449', hl: '#4ade80', sh: '#0f3d1e', st: '#14532d', fc: '#0a2712', score: 500 },
 ];
 
 // 可随机掉落的水果等级范围（前 3 级）
@@ -772,136 +746,59 @@ class Fruit {
   }
 
   /**
-   * 绘制高级水果
-   * 步骤: 阴影 → 主体径向渐变 → 边框 → 左上高光 → 眼睛 → 微笑 → 腮红 → 名称
+   * 绘制水果 — 使用系统 emoji 高清渲染
+   * 步骤: 底部阴影 → emoji 主体 → 边框光晕 → 名称标签(大水果) → 皇冠(大西瓜)
    */
   draw(frame) {
     const x = this.x, y = this.y, r = this.r;
     const type = FRUIT_TYPES[this.level];
-    const t = frame * 0.02 + this.level; // 微小动画用
 
     // —— 1. 底部投影 ——
     ctx.save();
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = '#000';
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = r * 0.4;
     ctx.beginPath();
-    ctx.ellipse(x + 2, y + 5, r * 0.85, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 2, y + r * 0.15, r * 0.7, r * 0.25, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fill();
     ctx.restore();
 
-    // —— 2. 主体圆形 + 径向渐变 ——
+    // —— 2. 发光背景圈 ——
     ctx.save();
+    ctx.shadowColor = type.color;
+    ctx.shadowBlur = r * 0.3;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.closePath();
-
-    // 主径向渐变：从左上高光到边缘暗色
-    const grad = ctx.createRadialGradient(
-      x - r * 0.35, y - r * 0.35, r * 0.05,
-      x + r * 0.1, y + r * 0.1, r * 1.1
-    );
-    grad.addColorStop(0, type.hl);                     // 高光点
-    grad.addColorStop(0.4, type.color);                // 主色
-    grad.addColorStop(0.85, darkenColor(type.color, 40)); // 边缘加深
-    grad.addColorStop(1, type.sh);                     // 最暗边缘
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // 边框（柔光）
-    ctx.strokeStyle = type.st;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-
-    // —— 3. 左上角主高光（写实反射） ——
-    ctx.save();
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.ellipse(x - r * 0.3, y - r * 0.32, r * 0.28, r * 0.18, -0.6, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
+    ctx.arc(x, y, r * 0.85, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
     ctx.fill();
     ctx.restore();
 
-    // 小号副高光（右下微量反弹光）
+    // —— 3. 主体：系统 emoji 高清渲染 ——
     ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.beginPath();
-    ctx.ellipse(x + r * 0.25, y + r * 0.3, r * 0.1, r * 0.07, 0.4, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const emojiSize = r * 2.2;
+    ctx.font = `${emojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "EmojiOne Color", sans-serif`;
+    ctx.fillText(type.emoji, x, y + 1);
     ctx.restore();
 
-    // —— 4. 可爱表情 ——
-    const faceScale = Math.min(1, r / 18);
-    const eyeOffX = r * 0.26 * faceScale;
-    const eyeY = y - r * 0.03 * faceScale;
-    const eyeR = r * 0.09 * faceScale;
-
-    ctx.save();
-
-    // 眼睛：深色圆 + 白色高光
-    ctx.fillStyle = type.fc;
-    for (const side of [-1, 1]) {
-      const ex = x + side * eyeOffX;
-      // 偶尔眨眼（每 180 帧眨一次）
-      const blink = (frame % 180 < 4) ? 0.2 : 1;
+    // —— 4. 水果名称标签（大水果显示） ——
+    if (r >= 32) {
       ctx.save();
-      ctx.scale(1, blink);
-      ctx.beginPath();
-      ctx.arc(ex, eyeY / blink, eyeR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      // 眼睛高光点
-      if (blink > 0.5) {
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(ex + eyeR * 0.35, (eyeY / (blink || 0.01)) - eyeR * 0.3, eyeR * 0.4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = type.fc;
-      }
-    }
-
-    // 微笑弧线（半径足够大时显示）
-    if (r >= 16) {
-      ctx.strokeStyle = type.fc;
-      ctx.lineWidth = Math.max(1.2, r * 0.045);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.arc(x, eyeY + r * 0.14 * faceScale, r * 0.17 * faceScale,
-              0.2 * Math.PI, 0.8 * Math.PI);
-      ctx.stroke();
-    }
-
-    // 腮红（半径足够大时显示）
-    if (r >= 18) {
-      ctx.fillStyle = 'rgba(255, 150, 150, 0.35)';
-      for (const side of [-1, 1]) {
-        ctx.beginPath();
-        ctx.ellipse(x + side * r * 0.38, eyeY + r * 0.16 * faceScale,
-                     r * 0.1, r * 0.06, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-
-    // —— 5. 大水果下方显示名称标签 ——
-    if (r >= 38) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.font = `bold ${Math.min(r * 0.35, 16)}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = `bold ${Math.min(r * 0.28, 14)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
       ctx.shadowBlur = 4;
       ctx.fillText(type.name, x, y + r + 3);
       ctx.restore();
     }
 
-    // —— 6. 合成大西瓜（10级）额外皇冠装饰 ——
+    // —— 5. 大西瓜（10级）皇冠装饰 ——
     if (this.level === 10) {
       ctx.save();
-      ctx.font = '16px sans-serif';
+      ctx.font = '22px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.shadowColor = 'rgba(255,215,0,0.6)';
@@ -1290,23 +1187,16 @@ function drawUI() {
   ctx.restore();
 
   const nextType = FRUIT_TYPES[nextLevel];
-  const previewR = nextType.r * 0.55;
+  // 预览水果用 emoji 高清渲染
   ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.globalAlpha = 0.85;
-  ctx.beginPath();
-  ctx.arc(CANVAS_W / 2, previewY + 15, previewR, 0, Math.PI * 2);
-  const pg = ctx.createRadialGradient(
-    CANVAS_W / 2 - previewR * 0.3, previewY + 15 - previewR * 0.3, 1,
-    CANVAS_W / 2, previewY + 15, previewR
-  );
-  pg.addColorStop(0, nextType.hl);
-  pg.addColorStop(0.6, nextType.color);
-  pg.addColorStop(1, nextType.sh);
-  ctx.fillStyle = pg;
-  ctx.fill();
-  ctx.strokeStyle = nextType.st;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  const previewEmojiSize = nextType.r * 1.3;
+  ctx.font = `${previewEmojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.shadowColor = nextType.color;
+  ctx.shadowBlur = 10;
+  ctx.fillText(nextType.emoji, CANVAS_W / 2, previewY + 16);
   ctx.restore();
 
   // 预览水果名称
@@ -1341,22 +1231,14 @@ function drawGhost() {
   ctx.setLineDash([]);
   ctx.restore();
 
-  // 幽灵水果（半透明圆）
+  // 幽灵水果（半透明 emoji）
   ctx.save();
-  ctx.globalAlpha = 0.25;
-  ctx.beginPath();
-  ctx.arc(ghostX, ghostY, r, 0, Math.PI * 2);
-  const gg = ctx.createRadialGradient(ghostX - r * 0.3, ghostY - r * 0.3, 1, ghostX, ghostY, r);
-  gg.addColorStop(0, type.hl);
-  gg.addColorStop(0.6, type.color);
-  gg.addColorStop(1, type.sh);
-  ctx.fillStyle = gg;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([4, 4]);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.3;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const ghostEmojiSize = r * 2.2;
+  ctx.font = `${ghostEmojiSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.fillText(type.emoji, ghostX, ghostY + 2);
   ctx.restore();
 }
 
