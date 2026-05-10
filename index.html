@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>水果合成大作战</title>
+<style>
+/* ===== 全局样式 ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+body {
+  background: #050510;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  overflow: hidden;
+  touch-action: none;
+}
+/* 游戏容器 */
+#game-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+/* 画布 - 响应式 */
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 400 / 750;
+  border-radius: 12px;
+  box-shadow: 0 0 40px rgba(100, 50, 200, 0.2), 0 0 80px rgba(50, 20, 120, 0.1);
+  touch-action: none;
+  cursor: pointer;
+}
+/* 游戏结束遮罩 */
+#gameOverOverlay {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  z-index: 10;
+}
+#gameOverOverlay.show { display: flex; }
+#gameOverOverlay h1 {
+  color: #ff4466;
+  font-size: 2.2em;
+  text-shadow: 0 0 30px rgba(255, 68, 102, 0.6);
+  margin-bottom: 10px;
+  letter-spacing: 4px;
+}
+#gameOverOverlay .final-score {
+  color: #fff;
+  font-size: 1.2em;
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+#gameOverOverlay .final-score span { color: #ffcc00; font-size: 1.4em; }
+#gameOverOverlay .high-score-text {
+  color: #aaa;
+  font-size: 0.95em;
+  margin-bottom: 24px;
+}
+#gameOverOverlay .high-score-text span { color: #ffcc00; }
+#restartBtn {
+  background: linear-gradient(135deg, #8B5CF6, #6D28D9);
+  color: #fff;
+  border: none;
+  padding: 14px 48px;
+  font-size: 1.1em;
+  border-radius: 30px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 2px;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+}
+#restartBtn:active { transform: scale(0.95); }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas" width="400" height="750"></canvas>
+  <div id="gameOverOverlay">
+    <h1>游戏结束</h1>
+    <div class="final-score">得分: <span id="finalScore">0</span></div>
+    <div class="high-score-text">最高分: <span id="finalHighScore">0</span></div>
+    <button id="restartBtn">再来一次</button>
+  </div>
+</div>
+<script>
+// ============================================================
+// 水果合成大作战 —— 完整游戏代码
+// 灵感来自《合成大西瓜》/ Suika Game / Watermelon Game
+// ============================================================
+
+// ============================================================
+// 一、常量与配置
+// ============================================================
+
+const CANVAS_W = 400;   // 画布宽度
+const CANVAS_H = 750;   // 画布高度
+
+// 游戏区域边界
+const PLAY_LEFT   = 12;
+const PLAY_RIGHT  = 388;
+const PLAY_TOP    = 105;
+const PLAY_BOTTOM = 725;
+const PLAY_WIDTH  = PLAY_RIGHT - PLAY_LEFT;   // 376
+const PLAY_HEIGHT = PLAY_BOTTOM - PLAY_TOP;    // 620
+
+// 危险红线 Y 坐标（从游戏区域顶部往下算）
+const RED_LINE_Y = 142;
+
+// 物理参数
+const GRAVITY        = 0.35;   // 每帧重力加速度
+const RESTITUTION    = 0.18;   // 弹性系数
+const FRICTION       = 0.992;  // 速度衰减
+const MAX_VELOCITY   = 22;     // 最大速度限制
+const COLLIDE_ITERS  = 8;      // 每帧碰撞迭代次数
+const VEL_THRESHOLD  = 0.3;    // 判定"静止"的速度阈值
+
+// 掉落冷却（毫秒）
+const DROP_COOLDOWN = 400;
+
+// 水果等级定义（11级）
+// 每项: { 名称, 半径, 主色, 高光色, 边框色, 分值基数 }
+const FRUIT_TYPES = [
+  { name: '葡萄',    r: 14, color: '#9b59b6', highlight: '#c084fc', stroke: '#7c3aed', score: 10 },   // 0
+  { name: '樱桃',    r: 18, color: '#e74c3c', highlight: '#fca5a5', stroke: '#b91c1c', score: 20 },   // 1
+  { name: '橘子',    r: 23, color: '#f39c12', highlight: '#fcd34d', stroke: '#d97706', score: 30 },   // 2
+  { name: '柠檬',    r: 28, color: '#f1c40f', highlight: '#fef08a', stroke: '#a16207', score: 40 },   // 3
+  { name: '猕猴桃',  r: 33, color: '#2ecc71', highlight: '#86efac', stroke: '#15803d', score: 60 },   // 4
+  { name: '番茄',    r: 38, color: '#c0392b', highlight: '#f87171', stroke: '#991b1b', score: 80 },   // 5
+  { name: '桃子',    r: 43, color: '#fd79a8', highlight: '#f9a8d4', stroke: '#be185d', score: 120 },  // 6
+  { name: '菠萝',    r: 48, color: '#e67e22', highlight: '#fbbf24', stroke: '#b45309', score: 160 },  // 7
+  { name: '椰子',    r: 54, color: '#8B6914', highlight: '#d4a373', stroke: '#6b4f12', score: 220 },  // 8
+  { name: '半西瓜',  r: 62, color: '#27ae60', highlight: '#6ee7b7', stroke: '#166534', score: 300 },  // 9
+  { name: '大西瓜',  r: 72, color: '#1e8449', highlight: '#4ade80', stroke: '#14532d', score: 500 },  // 10
+];
+
+// 可随机掉落的水果等级范围（前3级：葡萄、樱桃、橘子）
+const DROP_LEVEL_MIN = 0;
+const DROP_LEVEL_MAX = 2;
+
+// ============================================================
+// 二、DOM 元素与画布
+// ============================================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('gameOverOverlay');
+const finalScoreEl = document.getElementById('finalScore');
+const finalHighEl = document.getElementById('finalHighScore');
+const restartBtn = document.getElementById('restartBtn');
+
+// ============================================================
+// 三、音效系统（Web Audio API）
+// ============================================================
+
+let audioCtx = null;
+
+/** 初始化音频上下文（需在用户交互时调用） */
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+/** 播放下落音效 */
+function playDropSound() {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
+  } catch(e) { /* 静默忽略 */ }
+}
+
+/** 播放合并音效，音高随等级升高 */
+function playMergeSound(level) {
+  if (!audioCtx) return;
+  try {
+    const baseFreq = 260 + level * 40;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, audioCtx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.18);
+    // 叠加一个短促的噪声质感
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(baseFreq * 2, audioCtx.currentTime);
+    gain2.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+    osc2.start(audioCtx.currentTime);
+    osc2.stop(audioCtx.currentTime + 0.06);
+  } catch(e) { /* 静默忽略 */ }
+}
+
+/** 播放游戏结束音效 */
+function playGameOverSound() {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.6);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.6);
+  } catch(e) { /* 静默忽略 */ }
+}
+
+// ============================================================
+// 四、工具函数
+// ============================================================
+
+/** 在范围内取随机整数 */
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+/** 两点距离 */
+function dist(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/** 从 localStorage 读取最高分 */
+function loadHighScore() {
+  try {
+    return parseInt(localStorage.getItem('fruitMergeHighScore')) || 0;
+  } catch { return 0; }
+}
+
+/** 保存最高分到 localStorage */
+function saveHighScore(score) {
+  try { localStorage.setItem('fruitMergeHighScore', score); } catch {}
+}
+
+// ============================================================
+// 五、星空背景
+// ============================================================
+
+const stars = [];
+for (let i = 0; i < 120; i++) {
+  stars.push({
+    x: Math.random() * CANVAS_W,
+    y: Math.random() * CANVAS_H,
+    r: Math.random() * 1.8 + 0.3,
+    speed: Math.random() * 0.015 + 0.005,
+    phase: Math.random() * Math.PI * 2,
+    brightness: Math.random() * 0.5 + 0.5,
+  });
+}
+
+/** 绘制闪烁星空 */
+function drawStars(frame) {
+  for (const s of stars) {
+    const alpha = s.brightness * (0.5 + 0.5 * Math.sin(frame * s.speed + s.phase));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// 六、粒子系统
+// ============================================================
+
+let particles = [];
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 5 + 1.5;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed - 2;
+    this.color = color;
+    this.life = 1;
+    this.decay = Math.random() * 0.025 + 0.015;
+    this.size = Math.random() * 4 + 2;
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vy += 0.08;
+    this.vx *= 0.98;
+    this.life -= this.decay;
+    return this.life > 0;
+  }
+  draw() {
+    ctx.globalAlpha = this.life;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** 生成合并爆炸粒子 */
+function spawnMergeParticles(x, y, color, count = 18) {
+  for (let i = 0; i < count; i++) {
+    particles.push(new Particle(x, y, color));
+  }
+}
+
+// ============================================================
+// 七、分数弹出动画
+// ============================================================
+
+let scorePopups = [];
+
+class ScorePopup {
+  constructor(x, y, score) {
+    this.x = x;
+    this.y = y;
+    this.score = score;
+    this.life = 1;
+    this.vy = -1.5;
+  }
+  update() {
+    this.y += this.vy;
+    this.vy *= 0.97;
+    this.life -= 0.018;
+    return this.life > 0;
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.life;
+    ctx.fillStyle = '#ffdd00';
+    ctx.font = `bold ${16 + (1 - this.life) * 8}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(255, 200, 0, 0.6)';
+    ctx.shadowBlur = 12;
+    ctx.fillText(`+${this.score}`, this.x, this.y);
+    ctx.restore();
+  }
+}
+
+// ============================================================
+// 八、水果类
+// ============================================================
+
+class Fruit {
+  constructor(x, y, level) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.level = level;           // 0~10 对应 FRUIT_TYPES 索引
+    this.r = FRUIT_TYPES[level].r;
+    this.color = FRUIT_TYPES[level].color;
+    this.alive = true;
+    this.age = 0;                 // 存活帧数（用于红线判定冷却）
+    this.settled = false;         // 是否已静止
+  }
+
+  /** 更新物理：重力、速度、位置 */
+  updatePhysics() {
+    this.vy += GRAVITY;
+    this.vx *= FRICTION;
+    this.vy *= FRICTION;
+    // 限速
+    const spd = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (spd > MAX_VELOCITY) {
+      const scale = MAX_VELOCITY / spd;
+      this.vx *= scale;
+      this.vy *= scale;
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.age++;
+    // 判定是否近乎静止
+    this.settled = spd < VEL_THRESHOLD;
+  }
+
+  /** 与墙壁碰撞 */
+  collideWalls() {
+    // 左墙
+    if (this.x - this.r < PLAY_LEFT) {
+      this.x = PLAY_LEFT + this.r;
+      this.vx = -this.vx * RESTITUTION;
+    }
+    // 右墙
+    if (this.x + this.r > PLAY_RIGHT) {
+      this.x = PLAY_RIGHT - this.r;
+      this.vx = -this.vx * RESTITUTION;
+    }
+    // 地板
+    if (this.y + this.r > PLAY_BOTTOM) {
+      this.y = PLAY_BOTTOM - this.r;
+      this.vy = -this.vy * RESTITUTION;
+      // 地面摩擦
+      this.vx *= 0.98;
+    }
+    // 天花板——防止弹到 UI 区域
+    if (this.y - this.r < PLAY_TOP) {
+      this.y = PLAY_TOP + this.r;
+      this.vy = -this.vy * RESTITUTION * 0.5;
+    }
+  }
+
+  /** 与另一颗水果的碰撞检测与响应 */
+  collideWith(other) {
+    const dx = other.x - this.x;
+    const dy = other.y - this.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const minD = this.r + other.r;
+    if (d >= minD || d < 0.001) return;
+
+    // 归一化法线方向（从 this 指向 other）
+    const nx = dx / d;
+    const ny = dy / d;
+
+    // ===== 位置修正 =====
+    const overlap = minD - d;
+    // 质量与半径平方成正比
+    const invM1 = 1 / (this.r * this.r);
+    const invM2 = 1 / (other.r * other.r);
+    const totalInv = invM1 + invM2;
+    const corr1 = overlap * (invM1 / totalInv);
+    const corr2 = overlap * (invM2 / totalInv);
+    this.x  -= nx * corr1;
+    this.y  -= ny * corr1;
+    other.x += nx * corr2;
+    other.y += ny * corr2;
+
+    // ===== 速度脉冲 =====
+    const relVx = this.vx - other.vx;
+    const relVy = this.vy - other.vy;
+    const relVn = relVx * nx + relVy * ny;
+    if (relVn > 0) {
+      const impulse = relVn * (1 + RESTITUTION) / totalInv;
+      this.vx  -= impulse * nx * invM1;
+      this.vy  -= impulse * ny * invM1;
+      other.vx += impulse * nx * invM2;
+      other.vy += impulse * ny * invM2;
+    }
+  }
+
+  /** 绘制可爱水果（带表情） */
+  draw(frame) {
+    const x = this.x, y = this.y, r = this.r;
+    const type = FRUIT_TYPES[this.level];
+
+    // —— 阴影 ——
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + 4, r * 0.9, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // —— 主体圆形 ——
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    // 径向渐变增加立体感
+    const grad = ctx.createRadialGradient(
+      x - r * 0.3, y - r * 0.3, r * 0.1,
+      x, y, r
+    );
+    grad.addColorStop(0, type.highlight);
+    grad.addColorStop(0.7, type.color);
+    grad.addColorStop(1, darkenColor(type.color, 30));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // 边框
+    ctx.strokeStyle = type.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // —— 高光（左上角反光） ——
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.28, y - r * 0.3, r * 0.25, r * 0.18, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // —— 可爱表情 ——
+    const faceScale = Math.min(1, r / 20);  // 小水果表情缩小
+    const eyeOffsetX = r * 0.26 * faceScale;
+    const eyeY = y - r * 0.05 * faceScale;
+    const eyeR = r * 0.09 * faceScale;
+
+    ctx.save();
+    // 眼睛（黑色圆点 + 白色高光）
+    ctx.fillStyle = '#2d1b00';
+    [-1, 1].forEach(side => {
+      const ex = x + side * eyeOffsetX;
+      ctx.beginPath();
+      ctx.arc(ex, eyeY, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      // 眼睛高光
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex + eyeR * 0.35, eyeY - eyeR * 0.3, eyeR * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2d1b00';
+    });
+
+    // 微笑弧线
+    if (r >= 16) {
+      ctx.strokeStyle = '#2d1b00';
+      ctx.lineWidth = Math.max(1, r * 0.04);
+      ctx.beginPath();
+      ctx.arc(x, eyeY + r * 0.12 * faceScale, r * 0.16 * faceScale,
+              0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+    }
+
+    // 腮红
+    if (r >= 18) {
+      ctx.fillStyle = 'rgba(255, 150, 150, 0.35)';
+      [-1, 1].forEach(side => {
+        ctx.beginPath();
+        ctx.ellipse(x + side * r * 0.38, eyeY + r * 0.14 * faceScale,
+                     r * 0.1, r * 0.06, 0, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    ctx.restore();
+
+    // —— 大水果下方显示名称 ——
+    if (r >= 38) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.font = `bold ${Math.min(r * 0.32, 14)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(type.name, x, y + r + 3);
+      ctx.restore();
+    }
+  }
+}
+
+/** 颜色加深工具 */
+function darkenColor(hex, amount) {
+  let c = hex.replace('#', '');
+  if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  const r = Math.max(0, parseInt(c.substr(0,2),16) - amount);
+  const g = Math.max(0, parseInt(c.substr(2,2),16) - amount);
+  const b = Math.max(0, parseInt(c.substr(4,2),16) - amount);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ============================================================
+// 九、游戏状态
+// ============================================================
+
+let fruits = [];           // 当前场景中所有水果
+let nextLevel = 0;         // 即将掉落的水果等级
+let score = 0;
+let highScore = loadHighScore();
+let gameState = 'playing'; // 'playing' | 'gameover'
+let canDrop = true;        // 是否可掉落
+let pointerX = CANVAS_W / 2; // 鼠标/触摸当前位置 X
+let frameCount = 0;
+let aboveLineTimer = 0;    // 水果越线计时器
+const ABOVE_LINE_THRESHOLD = 90; // 越线超过 90 帧（约 1.5 秒）则 game over
+
+// 用于记录合并且显示提示
+let mergeNotification = { text: '', timer: 0 };
+
+/** 重置游戏 */
+function resetGame() {
+  fruits = [];
+  particles = [];
+  scorePopups = [];
+  score = 0;
+  nextLevel = randInt(DROP_LEVEL_MIN, DROP_LEVEL_MAX);
+  gameState = 'playing';
+  canDrop = true;
+  aboveLineTimer = 0;
+  overlay.classList.remove('show');
+  mergeNotification = { text: '', timer: 0 };
+}
+
+/** 获取一个随机掉落等级 */
+function getRandomDropLevel() {
+  return randInt(DROP_LEVEL_MIN, DROP_LEVEL_MAX);
+}
+
+// ============================================================
+// 十、核心游戏逻辑
+// ============================================================
+
+/** 尝试掉落水果 */
+function dropFruit(x) {
+  if (gameState !== 'playing' || !canDrop) return;
+
+  const level = nextLevel;
+  const r = FRUIT_TYPES[level].r;
+  // 限制掉落 X 在有效范围内
+  const dropX = Math.max(PLAY_LEFT + r, Math.min(PLAY_RIGHT - r, x));
+  const dropY = PLAY_TOP + 2;
+
+  // 检查掉落位置是否被占用
+  for (const f of fruits) {
+    if (dist(dropX, dropY, f.x, f.y) < r + f.r + 2) return;
+  }
+
+  // 创建水果
+  const fruit = new Fruit(dropX, dropY, level);
+  fruit.vy = 1; // 初始向下速度
+  fruits.push(fruit);
+
+  // 生成下一颗
+  nextLevel = getRandomDropLevel();
+
+  // 冷却
+  canDrop = false;
+  setTimeout(() => { canDrop = true; }, DROP_COOLDOWN);
+
+  initAudio();
+  playDropSound();
+}
+
+/** 检测并执行同等级水果合并 */
+function checkMerges() {
+  const merged = new Set();
+  for (let i = 0; i < fruits.length; i++) {
+    if (!fruits[i].alive || merged.has(i)) continue;
+    for (let j = i + 1; j < fruits.length; j++) {
+      if (!fruits[j].alive || merged.has(j)) continue;
+      const a = fruits[i], b = fruits[j];
+      if (a.level !== b.level) continue;
+      if (a.level >= FRUIT_TYPES.length - 1) continue; // 最高级不能再合并
+      if (dist(a.x, a.y, b.x, b.y) < a.r + b.r + 4) {
+        // 合并！
+        const newLevel = a.level + 1;
+        const newX = (a.x + b.x) / 2;
+        const newY = (a.y + b.y) / 2;
+        const newFruit = new Fruit(newX, newY, newLevel);
+        // 给新水果一点随机小速度让它自然落下
+        newFruit.vx = (a.vx + b.vx) * 0.3 + (Math.random() - 0.5) * 1;
+        newFruit.vy = (a.vy + b.vy) * 0.3 - 1;
+        fruits.push(newFruit);
+
+        // 标记原水果死亡
+        a.alive = false;
+        b.alive = false;
+        merged.add(i);
+        merged.add(j);
+
+        // 粒子效果
+        const newColor = FRUIT_TYPES[newLevel].color;
+        spawnMergeParticles(newX, newY, newColor);
+
+        // 分数弹出
+        const pts = FRUIT_TYPES[newLevel].score;
+        scorePopups.push(new ScorePopup(newX, newY - 10, pts));
+        score += pts;
+
+        // 合并提示
+        mergeNotification = {
+          text: `合成了${FRUIT_TYPES[newLevel].name}！`,
+          timer: 60
+        };
+
+        // 音效
+        playMergeSound(newLevel);
+
+        // 只允许每对合并一次
+        break;
+      }
+    }
+  }
+
+  // 移除已合并的水果
+  fruits = fruits.filter(f => f.alive);
+}
+
+/** 检查游戏是否结束（水果堆积超过红线） */
+function checkGameOver() {
+  let anyAbove = false;
+  for (const f of fruits) {
+    // 水果顶部超过红线且已存在一段时间（避免刚掉落的误判）
+    if (f.y - f.r < RED_LINE_Y && f.age > 30) {
+      anyAbove = true;
+      break;
+    }
+  }
+  if (anyAbove) {
+    aboveLineTimer++;
+    if (aboveLineTimer >= ABOVE_LINE_THRESHOLD) {
+      return true;
+    }
+  } else {
+    aboveLineTimer = Math.max(0, aboveLineTimer - 3);
+  }
+  return false;
+}
+
+/** 执行游戏结束 */
+function doGameOver() {
+  gameState = 'gameover';
+  playGameOverSound();
+
+  // 更新最高分
+  if (score > highScore) {
+    highScore = score;
+    saveHighScore(highScore);
+  }
+
+  // 显示遮罩
+  finalScoreEl.textContent = score;
+  finalHighEl.textContent = highScore;
+  overlay.classList.add('show');
+}
+
+// ============================================================
+// 十一、物理引擎（每帧更新）
+// ============================================================
+
+function updatePhysics() {
+  // 1. 对所有水果施加重力并更新位置
+  for (const f of fruits) {
+    f.updatePhysics();
+  }
+
+  // 2. 多次迭代求解碰撞
+  for (let iter = 0; iter < COLLIDE_ITERS; iter++) {
+    // 水果间碰撞
+    for (let i = 0; i < fruits.length; i++) {
+      for (let j = i + 1; j < fruits.length; j++) {
+        fruits[i].collideWith(fruits[j]);
+      }
+    }
+    // 墙壁碰撞
+    for (const f of fruits) {
+      f.collideWalls();
+    }
+  }
+}
+
+// ============================================================
+// 十二、渲染
+// ============================================================
+
+/** 绘制游戏背景（太空主题） */
+function drawBackground() {
+  // 深空渐变
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  bgGrad.addColorStop(0, '#0a0520');
+  bgGrad.addColorStop(0.5, '#0f0a2e');
+  bgGrad.addColorStop(1, '#080420');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+}
+
+/** 绘制游戏区域容器 */
+function drawPlayArea() {
+  // 半透明背景
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 2;
+  const r = 8;
+  ctx.beginPath();
+  ctx.moveTo(PLAY_LEFT + r, PLAY_TOP);
+  ctx.lineTo(PLAY_RIGHT - r, PLAY_TOP);
+  ctx.quadraticCurveTo(PLAY_RIGHT, PLAY_TOP, PLAY_RIGHT, PLAY_TOP + r);
+  ctx.lineTo(PLAY_RIGHT, PLAY_BOTTOM - r);
+  ctx.quadraticCurveTo(PLAY_RIGHT, PLAY_BOTTOM, PLAY_RIGHT - r, PLAY_BOTTOM);
+  ctx.lineTo(PLAY_LEFT + r, PLAY_BOTTOM);
+  ctx.quadraticCurveTo(PLAY_LEFT, PLAY_BOTTOM, PLAY_LEFT, PLAY_BOTTOM - r);
+  ctx.lineTo(PLAY_LEFT, PLAY_TOP + r);
+  ctx.quadraticCurveTo(PLAY_LEFT, PLAY_TOP, PLAY_LEFT + r, PLAY_TOP);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 绘制危险红线 */
+function drawRedLine() {
+  ctx.save();
+  // 发光效果
+  ctx.shadowColor = '#ff0033';
+  ctx.shadowBlur = 18 + 6 * Math.sin(frameCount * 0.05);
+
+  // 主线条
+  ctx.strokeStyle = '#ff2244';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  // 红线跨越整个游戏区域
+  ctx.moveTo(PLAY_LEFT, RED_LINE_Y);
+  ctx.lineTo(PLAY_RIGHT, RED_LINE_Y);
+  ctx.stroke();
+
+  // 实线叠加（让线更醒目）
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 8;
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = '#ff4477';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PLAY_LEFT, RED_LINE_Y);
+  ctx.lineTo(PLAY_RIGHT, RED_LINE_Y);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // 危险标签
+  ctx.save();
+  ctx.fillStyle = '#ff3355';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.globalAlpha = 0.5 + 0.3 * Math.sin(frameCount * 0.06);
+  ctx.fillText('⚠ 警戒线', PLAY_RIGHT - 4, RED_LINE_Y - 4);
+  ctx.restore();
+}
+
+/** 绘制顶部 UI */
+function drawUI() {
+  // —— 标题 ——
+  ctx.save();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(139, 92, 246, 0.6)';
+  ctx.shadowBlur = 20;
+  ctx.fillText('🍉 水果合成大作战', CANVAS_W / 2, 8);
+  ctx.restore();
+
+  // —— 分数与最高分 ——
+  ctx.save();
+  ctx.textBaseline = 'top';
+
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('分数', 16, 42);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText(score, 16, 60);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('最高分', CANVAS_W - 16, 44);
+
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText(highScore, CANVAS_W - 16, 60);
+  ctx.restore();
+
+  // —— 下一个水果预览 ——
+  const previewY = 78;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('下一个', CANVAS_W / 2, previewY);
+  ctx.restore();
+
+  // 预览水果
+  const previewR = FRUIT_TYPES[nextLevel].r * 0.55;
+  const previewColor = FRUIT_TYPES[nextLevel].color;
+  ctx.save();
+  ctx.globalAlpha = 0.8;
+  ctx.beginPath();
+  ctx.arc(CANVAS_W / 2, previewY + 16, previewR, 0, Math.PI * 2);
+  ctx.fillStyle = previewColor;
+  ctx.fill();
+  ctx.strokeStyle = FRUIT_TYPES[nextLevel].stroke;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+  // 预览水果名称
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(FRUIT_TYPES[nextLevel].name, CANVAS_W / 2, previewY + 16 + previewR + 2);
+  ctx.restore();
+}
+
+/** 绘制鼠标跟随指示器（幽灵水果） */
+function drawGhost() {
+  if (gameState !== 'playing' || !canDrop) return;
+  const level = nextLevel;
+  const r = FRUIT_TYPES[level].r;
+  const ghostX = Math.max(PLAY_LEFT + r, Math.min(PLAY_RIGHT - r, pointerX));
+  const ghostY = PLAY_TOP + 2;
+
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.beginPath();
+  ctx.arc(ghostX, ghostY, r, 0, Math.PI * 2);
+  ctx.fillStyle = FRUIT_TYPES[level].color;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 绘制合并提示 */
+function drawMergeNotification() {
+  if (mergeNotification.timer <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, mergeNotification.timer / 20);
+  ctx.fillStyle = '#ffdd44';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(255, 200, 0, 0.5)';
+  ctx.shadowBlur = 15;
+  ctx.fillText(mergeNotification.text, CANVAS_W / 2, 330);
+  ctx.restore();
+  mergeNotification.timer--;
+}
+
+// ============================================================
+// 十三、主循环
+// ============================================================
+
+function gameLoop() {
+  frameCount++;
+
+  // —— 更新 ——
+  if (gameState === 'playing') {
+    // 物理
+    updatePhysics();
+    // 检测合并
+    checkMerges();
+    // 检查游戏结束
+    if (checkGameOver()) {
+      doGameOver();
+    }
+  }
+
+  // 更新粒子
+  particles = particles.filter(p => p.update());
+  // 更新得分弹出
+  scorePopups = scorePopups.filter(s => s.update());
+
+  // —— 渲染 ——
+  drawBackground();
+  drawStars(frameCount);
+  drawPlayArea();
+  drawRedLine();
+
+  // 绘制所有水果
+  for (const f of fruits) {
+    f.draw(frameCount);
+  }
+
+  // 绘制粒子
+  for (const p of particles) {
+    p.draw();
+  }
+
+  // 绘制弹出分数
+  for (const s of scorePopups) {
+    s.draw();
+  }
+
+  drawMergeNotification();
+  drawGhost();
+  drawUI();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ============================================================
+// 十四、事件处理
+// ============================================================
+
+/** 将页面坐标转为画布坐标 */
+function canvasCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+/** 处理点击/触摸掉落 */
+function handlePointerDown(clientX, clientY) {
+  initAudio();
+  // 恢复被挂起的 AudioContext
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  const pos = canvasCoords(clientX, clientY);
+  // 只在游戏区域内点击才掉落
+  if (pos.x >= PLAY_LEFT && pos.x <= PLAY_RIGHT &&
+      pos.y >= PLAY_TOP && pos.y <= PLAY_BOTTOM) {
+    dropFruit(pos.x);
+  }
+}
+
+/** 更新指针 X 位置（用于幽灵指示器） */
+function updatePointerX(clientX, clientY) {
+  const pos = canvasCoords(clientX, clientY);
+  pointerX = pos.x;
+}
+
+// —— 鼠标事件 ——
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  handlePointerDown(e.clientX, e.clientY);
+});
+canvas.addEventListener('mousemove', (e) => {
+  updatePointerX(e.clientX, e.clientY);
+});
+canvas.addEventListener('mouseleave', () => {
+  pointerX = CANVAS_W / 2;
+});
+
+// —— 触摸事件 ——
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  handlePointerDown(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  updatePointerX(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+}, { passive: false });
+
+// —— 键盘支持（空格键掉落中间） ——
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ' || e.key === 'Space') {
+    e.preventDefault();
+    dropFruit(CANVAS_W / 2);
+  }
+});
+
+// —— 重新开始 ——
+restartBtn.addEventListener('click', () => {
+  resetGame();
+});
+restartBtn.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  resetGame();
+});
+
+// ============================================================
+// 十五、启动游戏
+// ============================================================
+
+/** 处理窗口缩放——调整容器大小 */
+function handleResize() {
+  // 容器自适应由 CSS 处理，无需额外操作
+}
+
+window.addEventListener('resize', handleResize);
+
+// 初始化游戏
+resetGame();
+gameLoop();
+
+// 启动时从 localStorage 读取最高分
+highScore = loadHighScore();
+
+// 一个小彩蛋：控制台输出
+console.log('🍉 水果合成大作战已启动！');
+console.log('💡 点击/触摸掉落水果，相同水果合成更高级水果！');
+
+</script>
+</body>
+</html>
